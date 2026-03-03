@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     
     # Database
-    MONGODB_URL: str = "mongodb+srv://Jishnu:iqakfEfgevSUxt7C@apilogs.crcqq1y.mongodb.net/?appName=apilogs"
+    MONGODB_URL: str = "mongodb+srv://Jishnu:jishrob1901@apilogs.crcqq1y.mongodb.net/?appName=apilogs"
     DATABASE_NAME: str = "api_security_db"
     
     # ML Model Paths

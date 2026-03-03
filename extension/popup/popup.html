@@ -1,78 +1,778 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
     <title>API Security Monitor</title>
+    <meta name="description" content="Real-time API security monitoring and risk assessment dashboard">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
     <style>
+        /* ====== RESET & BASE ====== */
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
         body {
-            width: 300px;
-            padding: 10px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            width: 420px;
+            height: 560px;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Rajdhani', sans-serif;
+            color: #e0e0e0;
+            position: relative;
         }
 
-        h3 {
-            margin-top: 0;
-            color: #333;
+        /* ====== THREE.JS CANVAS ====== */
+        #cyber-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
         }
 
-        .status {
+        /* ====== SCANLINE OVERLAY ====== */
+        .scanline-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            background: repeating-linear-gradient(0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 200, 0.015) 2px,
+                    rgba(0, 255, 200, 0.015) 4px);
+        }
+
+        .scanline-overlay::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg,
+                    transparent 0%,
+                    rgba(0, 255, 200, 0.03) 50%,
+                    transparent 100%);
+            animation: scanMove 4s linear infinite;
+        }
+
+        @keyframes scanMove {
+            0% {
+                transform: translateY(-100%);
+            }
+
+            100% {
+                transform: translateY(100%);
+            }
+        }
+
+        /* ====== MAIN UI CONTAINER ====== */
+        .ui-container {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            gap: 12px;
+        }
+
+        /* ====== HEADER ====== */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(0, 255, 200, 0.15);
+        }
+
+        .header-icon {
+            width: 36px;
+            height: 36px;
+            position: relative;
+        }
+
+        .header-icon .shield {
+            width: 100%;
+            height: 100%;
+            fill: none;
+            stroke: #00ffc8;
+            stroke-width: 1.5;
+            filter: drop-shadow(0 0 6px rgba(0, 255, 200, 0.5));
+            animation: shieldPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes shieldPulse {
+
+            0%,
+            100% {
+                filter: drop-shadow(0 0 6px rgba(0, 255, 200, 0.5));
+            }
+
+            50% {
+                filter: drop-shadow(0 0 14px rgba(0, 255, 200, 0.9));
+            }
+        }
+
+        .header-text h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #00ffc8, #00a8ff, #bf00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-transform: uppercase;
+        }
+
+        .header-text .subtitle {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: rgba(0, 255, 200, 0.5);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        /* ====== STATUS PANEL ====== */
+        .status-panel {
+            background: rgba(0, 20, 30, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 255, 200, 0.12);
+            border-radius: 10px;
+            padding: 14px 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00ffc8, transparent);
+            animation: borderScan 3s linear infinite;
+        }
+
+        @keyframes borderScan {
+            0% {
+                left: -100%;
+            }
+
+            100% {
+                left: 100%;
+            }
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pulse-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .pulse-dot.safe {
+            background: #00ffc8;
+            box-shadow: 0 0 8px #00ffc8, 0 0 20px rgba(0, 255, 200, 0.3);
+        }
+
+        .pulse-dot.risk {
+            background: #ff3a5e;
+            box-shadow: 0 0 8px #ff3a5e, 0 0 20px rgba(255, 58, 94, 0.3);
+        }
+
+        .pulse-dot::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: -4px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1px solid currentColor;
+            animation: pulseRing 1.5s ease-out infinite;
+            opacity: 0;
+        }
+
+        .pulse-dot.safe::after {
+            border-color: #00ffc8;
+        }
+
+        .pulse-dot.risk::after {
+            border-color: #ff3a5e;
+        }
+
+        @keyframes pulseRing {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.8;
+            }
+
+            100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+
+        .status-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .status-label.safe {
+            color: #00ffc8;
+        }
+
+        .status-label.risk {
+            color: #ff3a5e;
+        }
+
+        .threat-counter {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: rgba(0, 168, 255, 0.7);
+            padding: 4px 10px;
+            border: 1px solid rgba(0, 168, 255, 0.2);
+            border-radius: 20px;
+            background: rgba(0, 168, 255, 0.05);
+        }
+
+        /* ====== METRICS ROW ====== */
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .metric-card {
+            background: rgba(0, 20, 30, 0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 255, 200, 0.08);
+            border-radius: 8px;
             padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
             text-align: center;
-            font-weight: bold;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
 
-        .safe {
-            background-color: #d4edda;
-            color: #155724;
+        .metric-card:hover {
+            border-color: rgba(0, 255, 200, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 255, 200, 0.1);
         }
 
-        .risk {
-            background-color: #f8d7da;
-            color: #721c24;
+        .metric-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .metric-card:hover::after {
+            opacity: 1;
+        }
+
+        .metric-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent);
+            text-shadow: 0 0 10px var(--glow);
+        }
+
+        .metric-label {
+            font-size: 9px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: rgba(200, 200, 200, 0.5);
+            margin-top: 4px;
+        }
+
+        .metric-card:nth-child(1) {
+            --accent: #00ffc8;
+            --glow: rgba(0, 255, 200, 0.3);
+        }
+
+        .metric-card:nth-child(2) {
+            --accent: #00a8ff;
+            --glow: rgba(0, 168, 255, 0.3);
+        }
+
+        .metric-card:nth-child(3) {
+            --accent: #bf00ff;
+            --glow: rgba(191, 0, 255, 0.3);
+        }
+
+        /* ====== LOG SECTION ====== */
+        .log-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .log-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(0, 255, 200, 0.6);
+        }
+
+        .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 9px;
+            color: #ff3a5e;
+            letter-spacing: 1px;
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            background: #ff3a5e;
+            border-radius: 50%;
+            animation: livePulse 1s ease-in-out infinite;
+        }
+
+        @keyframes livePulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
         }
 
         .log-container {
-            max-height: 200px;
+            flex: 1;
             overflow-y: auto;
-            border-top: 1px solid #eee;
+            overflow-x: hidden;
+            padding-right: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .log-container::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .log-container::-webkit-scrollbar-track {
+            background: rgba(0, 20, 30, 0.3);
+            border-radius: 3px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 200, 0.2);
+            border-radius: 3px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 200, 0.4);
         }
 
         .log-item {
-            font-size: 12px;
-            padding: 5px 0;
-            border-bottom: 1px solid #f0f0f0;
+            background: rgba(0, 15, 25, 0.5);
+            border: 1px solid rgba(0, 255, 200, 0.06);
+            border-radius: 6px;
+            padding: 8px 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: logSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: border-color 0.3s ease;
         }
 
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 8px;
-            background-color: #007bff;
-            color: white;
-            text-align: center;
-            text-decoration: none;
+        .log-item:hover {
+            border-color: rgba(0, 255, 200, 0.2);
+        }
+
+        @keyframes logSlideIn {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .log-risk-badge {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            padding: 3px 8px;
             border-radius: 4px;
-            margin-top: 10px;
+            text-transform: uppercase;
+            min-width: 50px;
+            text-align: center;
+            flex-shrink: 0;
         }
 
-        .btn:hover {
-            background-color: #0056b3;
+        .log-risk-badge.high {
+            background: rgba(255, 58, 94, 0.15);
+            color: #ff3a5e;
+            border: 1px solid rgba(255, 58, 94, 0.3);
+            text-shadow: 0 0 8px rgba(255, 58, 94, 0.5);
+        }
+
+        .log-risk-badge.medium {
+            background: rgba(255, 170, 0, 0.15);
+            color: #ffaa00;
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            text-shadow: 0 0 8px rgba(255, 170, 0, 0.5);
+        }
+
+        .log-risk-badge.low {
+            background: rgba(0, 255, 200, 0.1);
+            color: #00ffc8;
+            border: 1px solid rgba(0, 255, 200, 0.2);
+            text-shadow: 0 0 8px rgba(0, 255, 200, 0.3);
+        }
+
+        .log-details {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .log-url {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: rgba(220, 220, 220, 0.8);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .log-score {
+            font-size: 9px;
+            color: rgba(0, 168, 255, 0.6);
+            margin-top: 2px;
+            letter-spacing: 1px;
+        }
+
+        .log-empty {
+            text-align: center;
+            padding: 30px 10px;
+            color: rgba(0, 255, 200, 0.25);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 2px;
+        }
+
+        .log-empty .hex-icon {
+            display: block;
+            margin: 0 auto 12px;
+            width: 40px;
+            height: 40px;
+            stroke: rgba(0, 255, 200, 0.15);
+            fill: none;
+            stroke-width: 1;
+        }
+
+        /* ====== DASHBOARD BUTTON ====== */
+        .dashboard-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(0, 255, 200, 0.08), rgba(0, 168, 255, 0.08));
+            border: 1px solid rgba(0, 255, 200, 0.15);
+            border-radius: 8px;
+            color: #00ffc8;
+            text-decoration: none;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .dashboard-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 200, 0.06), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .dashboard-btn:hover {
+            border-color: rgba(0, 255, 200, 0.4);
+            box-shadow: 0 0 20px rgba(0, 255, 200, 0.1), inset 0 0 20px rgba(0, 255, 200, 0.03);
+            transform: translateY(-1px);
+        }
+
+        .dashboard-btn:hover::before {
+            left: 100%;
+        }
+
+        .dashboard-btn svg {
+            width: 14px;
+            height: 14px;
+            stroke: #00ffc8;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        /* ====== CORNER DECORATIONS ====== */
+        .corner-decor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        .corner-decor::before,
+        .corner-decor::after {
+            content: '';
+            position: absolute;
+            background: rgba(0, 255, 200, 0.2);
+        }
+
+        .corner-tl {
+            top: 6px;
+            left: 6px;
+        }
+
+        .corner-tl::before {
+            top: 0;
+            left: 0;
+            width: 14px;
+            height: 1px;
+        }
+
+        .corner-tl::after {
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 14px;
+        }
+
+        .corner-tr {
+            top: 6px;
+            right: 6px;
+        }
+
+        .corner-tr::before {
+            top: 0;
+            right: 0;
+            width: 14px;
+            height: 1px;
+        }
+
+        .corner-tr::after {
+            top: 0;
+            right: 0;
+            width: 1px;
+            height: 14px;
+        }
+
+        .corner-bl {
+            bottom: 6px;
+            left: 6px;
+        }
+
+        .corner-bl::before {
+            bottom: 0;
+            left: 0;
+            width: 14px;
+            height: 1px;
+        }
+
+        .corner-bl::after {
+            bottom: 0;
+            left: 0;
+            width: 1px;
+            height: 14px;
+        }
+
+        .corner-br {
+            bottom: 6px;
+            right: 6px;
+        }
+
+        .corner-br::before {
+            bottom: 0;
+            right: 0;
+            width: 14px;
+            height: 1px;
+        }
+
+        .corner-br::after {
+            bottom: 0;
+            right: 0;
+            width: 1px;
+            height: 14px;
+        }
+
+        /* ====== VIGNETTE ====== */
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.6) 100%);
         }
     </style>
 </head>
 
 <body>
-    <h3>API Security Monitor</h3>
-    <div id="status" class="status safe">Monitoring Active</div>
+    <!-- Three.js 3D Background Canvas -->
+    <canvas id="cyber-canvas"></canvas>
 
-    <div class="log-container" id="log-list">
-        <!-- Logs appear here -->
+    <!-- Visual Overlays -->
+    <div class="scanline-overlay"></div>
+    <div class="vignette"></div>
+
+    <!-- Corner Decorations -->
+    <div class="corner-decor corner-tl"></div>
+    <div class="corner-decor corner-tr"></div>
+    <div class="corner-decor corner-bl"></div>
+    <div class="corner-decor corner-br"></div>
+
+    <!-- Main UI Layer -->
+    <div class="ui-container">
+
+        <!-- Header -->
+        <div class="header">
+            <div class="header-icon">
+                <svg class="shield" viewBox="0 0 24 24">
+                    <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" />
+                    <path d="M10 15l-3-3 1.5-1.5L10 12l4.5-4.5L16 9l-6 6z" stroke-width="1"
+                        fill="rgba(0,255,200,0.15)" />
+                </svg>
+            </div>
+            <div class="header-text">
+                <h1>API Shield</h1>
+                <div class="subtitle">Security Monitor v2.0</div>
+            </div>
+        </div>
+
+        <!-- Status Panel -->
+        <div class="status-panel" id="status-panel">
+            <div class="status-row">
+                <div class="status-indicator">
+                    <div class="pulse-dot safe" id="pulse-dot"></div>
+                    <span class="status-label safe" id="status-label">System Secure</span>
+                </div>
+                <div class="threat-counter" id="threat-counter">THREATS: 0</div>
+            </div>
+        </div>
+
+        <!-- Metrics -->
+        <div class="metrics-row">
+            <div class="metric-card">
+                <div class="metric-value" id="metric-scanned">0</div>
+                <div class="metric-label">Scanned</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="metric-blocked">0</div>
+                <div class="metric-label">Blocked</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="metric-score">100</div>
+                <div class="metric-label">Health</div>
+            </div>
+        </div>
+
+        <!-- Live Logs -->
+        <div class="log-section">
+            <div class="log-header">
+                <span class="log-title">Activity Feed</span>
+                <div class="live-badge">
+                    <div class="live-dot"></div>
+                    LIVE
+                </div>
+            </div>
+            <div class="log-container" id="log-list">
+                <div class="log-empty">
+                    <svg class="hex-icon" viewBox="0 0 24 24">
+                        <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" />
+                        <circle cx="12" cy="12" r="3" stroke-dasharray="2 2" />
+                    </svg>
+                    AWAITING NETWORK ACTIVITY...
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Button -->
+        <a href="http://localhost:5173" target="_blank" class="dashboard-btn" id="dashboard-btn">
+            <svg viewBox="0 0 24 24">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Open Dashboard
+        </a>
     </div>
 
-    <a href="http://localhost:5173" target="_blank" class="btn">Open Dashboard</a>
-
+    <!-- Scripts -->
+    <script src="three.min.js"></script>
+    <script src="cyber-scene.js"></script>
     <script src="popup.js"></script>
 </body>
 
