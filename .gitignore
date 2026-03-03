@@ -1,0 +1,66 @@
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.lnk
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Backend (Python)
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+backend/.env
+backend/.venv/
+backend/venv/
+backend/env/
+backend/build/
+backend/develop-eggs/
+backend/dist/
+backend/downloads/
+backend/eggs/
+backend/.eggs/
+backend/lib/
+backend/lib64/
+backend/parts/
+backend/sdist/
+backend/var/
+backend/wheels/
+backend/*.egg-info/
+backend/.installed.cfg
+backend/*.egg
+backend/.pytest_cache/
+backend/htmlcov/
+
+# Frontend (Node.js)
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+frontend/dist/
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Extension
+extension/node_modules/
+
+# ML / Data
+dataset/*.csv
+dataset/*.json
+!dataset/sample*.csv
+notebooks/.ipynb_checkpoints/
+*.joblib
+*.pkl
+*.pb
+
+# Logs
+*.log
