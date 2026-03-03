@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import Dashboard from './pages/Dashboard'
 import ThreatAnalysis from './pages/ThreatAnalysis'
 import AttackLogs from './pages/AttackLogs'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import ProtectedRoute from './components/ProtectedRoute'
 import { fetchLogs } from './services/api'
+import { useAuth } from './context/AuthContext'
 
-function App() {
+function DashboardLayout() {
+    const { logout, user } = useAuth()
     const [darkMode, setDarkMode] = useState(true)
     const [currentPage, setCurrentPage] = useState('dashboard')
     const [logs, setLogs] = useState([])
@@ -65,18 +71,35 @@ function App() {
     return (
         <div className={`${darkMode ? 'dark' : ''} h-screen flex overflow-hidden`}>
             <div className={`flex w-full h-full ${darkMode ? 'bg-[#0a0a0a] text-white' : 'bg-gray-50 text-gray-900'}`}>
-                {/* Sidebar */}
                 <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} darkMode={darkMode} />
-
-                {/* Main area */}
                 <div className="flex flex-col flex-1 ml-16 overflow-hidden">
-                    <Header currentPage={currentPage} darkMode={darkMode} setDarkMode={setDarkMode} />
+                    <Header
+                        currentPage={currentPage}
+                        darkMode={darkMode}
+                        setDarkMode={setDarkMode}
+                        user={user}
+                        onLogout={logout}
+                    />
                     <main className="flex-1 overflow-y-auto">
                         {renderPage()}
                     </main>
                 </div>
             </div>
         </div>
+    )
+}
+
+function App() {
+    return (
+        <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/*" element={
+                <ProtectedRoute>
+                    <DashboardLayout />
+                </ProtectedRoute>
+            } />
+        </Routes>
     )
 }
 

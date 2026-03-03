@@ -1,25 +1,29 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
-from typing import List, Dict
+from fastapi import APIRouter, HTTPException
+from typing import List
 from app.models.logs import APILogRequest, RiskAssessment
 from app.services.ml_service import ml_service
 from app.database import get_database
+import sys
 
 router = APIRouter()
 
 @router.post("/analyze", response_model=RiskAssessment)
-async def analyze_log(log: APILogRequest, background_tasks: BackgroundTasks):
+async def analyze_log(log: APILogRequest):
     """
     Analyze an API request log for security risks.
     """
     try:
         # 1. Analyze using ML Service
         assessment = ml_service.analyze(log)
-        
-        # 2. Store result in MongoDB (Async background task)
-        background_tasks.add_task(store_log, log, assessment)
-        
+
+        # 2. Store result in MongoDB (direct await so errors are visible)
+        await store_log(log, assessment)
+
         return assessment
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"[analyze] Error: {e}", file=sys.stderr, flush=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/logs", response_model=List[dict])

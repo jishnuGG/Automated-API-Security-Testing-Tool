@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from app.config import get_settings
 from app.database import db_instance
 from app.routes import analyze
+from app.routes import auth
 
 settings = get_settings()
 
@@ -23,6 +24,7 @@ app = FastAPI(
 
 # Include Routers
 app.include_router(analyze.router, prefix="/api/v1", tags=["Analysis"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 
 # CORS Middleware
 app.add_middleware(
@@ -43,9 +45,7 @@ async def health_check():
     db_name = None
     if db_instance.client:
         status = "connected"
-        db_name = getattr(db_instance, "db", None)
-        if db_name:
-            # the MotorCollection object repr includes the db name
+        if db_instance.db:
             db_name = db_instance.db.name
     return {"database": status, "db_name": db_name}
 

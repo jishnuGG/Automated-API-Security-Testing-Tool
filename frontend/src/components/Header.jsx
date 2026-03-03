@@ -18,7 +18,7 @@ const MoonIcon = () => (
     </svg>
 );
 
-const Header = ({ currentPage, darkMode, setDarkMode }) => {
+const Header = ({ currentPage, darkMode, setDarkMode, user, onLogout }) => {
     const meta = pageMeta[currentPage] || pageMeta.dashboard;
 
     return (
@@ -56,6 +56,30 @@ const Header = ({ currentPage, darkMode, setDarkMode }) => {
                     {darkMode ? <SunIcon /> : <MoonIcon />}
                     <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
                 </button>
+
+                {/* User info + logout */}
+                {user && (
+                    <div className="flex items-center gap-2">
+                        <div style={{
+                            width: 32, height: 32, borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #00ff88, #00aaff)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#0a0a0a', fontWeight: 700, fontSize: 13
+                        }}>
+                            {(user.name || user.email || '?')[0].toUpperCase()}
+                        </div>
+                        <span className={`text-sm hidden md:inline ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {user.name || user.email}
+                        </span>
+                        {onLogout && (
+                            <button onClick={onLogout}
+                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all
+                                    ${darkMode ? 'border-red-800 text-red-400 hover:bg-red-900/30' : 'border-red-300 text-red-500 hover:bg-red-50'}`}>
+                                ⏻ Logout
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
         </header>
     );

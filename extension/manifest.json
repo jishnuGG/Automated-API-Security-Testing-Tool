@@ -1,15 +1,16 @@
 {
     "manifest_version": 3,
     "name": "API Security Monitor",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Real-time API security monitoring and risk assessment.",
     "permissions": [
         "activeTab",
-        "storage"
+        "storage",
+        "webRequest",
+        "tabs"
     ],
     "host_permissions": [
-        "<all_urls>",
-        "http://localhost:8000/*"
+        "<all_urls>"
     ],
     "background": {
         "service_worker": "background.js"
