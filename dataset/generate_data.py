@@ -12,7 +12,7 @@ def generate_synthetic_data():
     
     methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
     protocols = ['HTTP', 'HTTPS']
-    risk_levels = ['Low', 'Medium', 'High']
+    risk_levels = ['low', 'medium', 'high']
 
     print(f"Generating {NUM_SAMPLES} samples...")
 
@@ -30,27 +30,27 @@ def generate_synthetic_data():
         payload_entropy = random.uniform(3.0, 8.0) # approx entropy
 
         # Determine Risk Level based on rules
-        risk = "Low"
+        risk = "low"
         
         # High Risk Rules
         if token_in_url and not auth_present:
-            risk = "High"
+            risk = "high"
         elif protocol == "HTTP" and sensitive_keywords:
-            risk = "High"
+            risk = "high"
         elif failed_login_patterns and request_frequency > 50:
-            risk = "High"
+            risk = "high"
         elif method == "POST" and not auth_present and sensitive_keywords:
-            risk = "High"
+            risk = "high"
             
         # Medium Risk Rules
         elif cors_policy_open and sensitive_keywords:
-            risk = "Medium"
+            risk = "medium"
         elif protocol == "HTTP" and auth_present:
-            risk = "Medium"
+            risk = "medium"
         elif status_code in [401, 403] and request_frequency > 20:
-            risk = "Medium"
+            risk = "medium"
         elif payload_entropy > 7.0: # High entropy might indicate encrypted payload or injection
-            risk = "Medium"
+            risk = "medium"
             
         # Noise / Randomness to prevent overfitting to exact rules
         if random.random() < 0.05: # 5% noise

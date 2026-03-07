@@ -4,28 +4,56 @@
 
 const BACKEND_URL = "http://localhost:8000/api/v1/analyze";
 
-// ──────────────────────────────────────────────────────────────────────────────
-// 1. webRequest listener — captures ALL browser-level requests (any tab, any site)
-//    This is more reliable than content.js fetch/XHR intercept which only catches
-//    JS-initiated calls. webRequest catches EVERYTHING the browser sends.
-// ──────────────────────────────────────────────────────────────────────────────
-
-// Map to track request start times
+// Track request start time
 const requestTimestamps = new Map();
 
+// Track headers captured before request is sent
+const requestHeadersMap = new Map();
+
+// ─────────────────────────────────────────────
+// 1. Capture request start
+// ─────────────────────────────────────────────
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
-        if (details.tabId === -1) return; // Ignore background/extension own requests
+        if (details.tabId === -1) return;
+
         requestTimestamps.set(details.requestId, Date.now());
     },
     { urls: ["<all_urls>"] }
 );
 
+// ─────────────────────────────────────────────
+// 2. Capture request headers
+// ─────────────────────────────────────────────
+chrome.webRequest.onBeforeSendHeaders.addListener(
+    (details) => {
+        if (details.tabId === -1) return;
+
+        const sensitiveKeys = ["authorization", "x-api-key", "cookie", "set-cookie"];
+        const headersObj = {};
+
+        if (details.requestHeaders) {
+            details.requestHeaders.forEach(({ name }) => {
+                const key = name.toLowerCase();
+                headersObj[key] = sensitiveKeys.includes(key) ? "PRESENT" : "VALUE";
+            });
+        }
+
+        requestHeadersMap.set(details.requestId, headersObj);
+    },
+    { urls: ["<all_urls>"] },
+    ["requestHeaders"]
+);
+
+// ─────────────────────────────────────────────
+// 3. Capture completed request
+// ─────────────────────────────────────────────
 chrome.webRequest.onCompleted.addListener(
     (details) => {
-        if (details.tabId === -1) return; // Ignore background/extension own requests
 
-        // Skip our own calls to the backend to avoid infinite loop
+        if (details.tabId === -1) return;
+
+        // Prevent logging our own backend call
         if (details.url.includes("localhost:8000")) return;
 
         const startTime = requestTimestamps.get(details.requestId) || Date.now();
@@ -33,15 +61,8 @@ chrome.webRequest.onCompleted.addListener(
 
         const responseTimeMs = Date.now() - startTime;
 
-        // Build sanitized headers object (mark presence, strip values)
-        const sensitiveKeys = ["authorization", "x-api-key", "cookie", "set-cookie"];
-        const headersObj = {};
-        if (details.requestHeaders) {
-            details.requestHeaders.forEach(({ name, value }) => {
-                const key = name.toLowerCase();
-                headersObj[key] = sensitiveKeys.includes(key) ? "PRESENT" : value;
-            });
-        }
+        const headersObj = requestHeadersMap.get(details.requestId) || {};
+        requestHeadersMap.delete(details.requestId);
 
         const logData = {
             url: details.url,
@@ -53,18 +74,24 @@ chrome.webRequest.onCompleted.addListener(
         };
 
         processLog(logData);
+
     },
-    { urls: ["<all_urls>"] },
-    ["requestHeaders"]
+    { urls: ["<all_urls>"] }
 );
 
+// ─────────────────────────────────────────────
+// 4. Capture failed requests
+// ─────────────────────────────────────────────
 chrome.webRequest.onErrorOccurred.addListener(
     (details) => {
+
         if (details.tabId === -1) return;
         if (details.url.includes("localhost:8000")) return;
 
         const startTime = requestTimestamps.get(details.requestId) || Date.now();
         requestTimestamps.delete(details.requestId);
+
+        requestHeadersMap.delete(details.requestId);
 
         processLog({
             url: details.url,
@@ -74,47 +101,55 @@ chrome.webRequest.onErrorOccurred.addListener(
             response_time_ms: Date.now() - startTime,
             timestamp: new Date().toISOString(),
         });
+
     },
     { urls: ["<all_urls>"] }
 );
 
-// ──────────────────────────────────────────────────────────────────────────────
-// 2. Message listener from content.js (JS-initiated fetch/XHR intercept)
-//    This is a secondary capture layer — webRequest above is the primary.
-// ──────────────────────────────────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+// ─────────────────────────────────────────────
+// 5. Receive logs from content.js
+// ─────────────────────────────────────────────
+chrome.runtime.onMessage.addListener((message) => {
+
     if (message.type === "API_LOG") {
-        // Only process if webRequest didn't already get this (avoid duplicates)
-        // For simplicity we deduplicate via a short TTL cache in processLog
         processLog(message.payload);
     }
+
 });
 
-// ──────────────────────────────────────────────────────────────────────────────
-// 3. Deduplication cache (URL+method+timestamp window)
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// 6. Deduplication cache
+// ─────────────────────────────────────────────
 const recentRequests = new Map();
 const DEDUP_WINDOW_MS = 500;
 
 function isDuplicate(logData) {
+
     const key = `${logData.method}:${logData.url}`;
     const now = Date.now();
+
     const last = recentRequests.get(key);
+
     if (last && now - last < DEDUP_WINDOW_MS) return true;
+
     recentRequests.set(key, now);
-    // Clean old entries periodically
+
     if (recentRequests.size > 200) {
         for (const [k, t] of recentRequests.entries()) {
-            if (now - t > DEDUP_WINDOW_MS * 4) recentRequests.delete(k);
+            if (now - t > DEDUP_WINDOW_MS * 4) {
+                recentRequests.delete(k);
+            }
         }
     }
+
     return false;
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// 4. Core processing — send log to backend
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// 7. Send log to backend
+// ─────────────────────────────────────────────
 async function processLog(logData) {
+
     if (isDuplicate(logData)) return;
 
     const auth_present =
@@ -132,10 +167,17 @@ async function processLog(logData) {
         request_body_entropy: 0.0,
         auth_token_present: auth_present,
         is_https: logData.url?.startsWith("https") ?? false,
-        origin: (() => { try { return new URL(logData.url).origin; } catch { return logData.url || ""; } })()
+        origin: (() => {
+            try {
+                return new URL(logData.url).origin;
+            } catch {
+                return logData.url || "";
+            }
+        })()
     };
 
     try {
+
         const response = await fetch(BACKEND_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -151,12 +193,14 @@ async function processLog(logData) {
             chrome.action.setBadgeBackgroundColor({ color: "#FF0000" });
         }
 
-        // Broadcast to popup/dashboard if open
         chrome.runtime.sendMessage({
             type: "RISK_ASSESSMENT",
             payload: assessment
-        }).catch(() => { }); // Ignore if popup not open
+        }).catch(() => { });
+
     } catch (error) {
+
         console.error("Failed to send log to backend:", error.message);
+
     }
 }

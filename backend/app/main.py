@@ -43,11 +43,17 @@ async def root():
 async def health_check():
     status = "disconnected"
     db_name = None
-    if db_instance.client:
+
+    if db_instance.client is not None:
         status = "connected"
-        if db_instance.db:
-            db_name = db_instance.db.name
-    return {"database": status, "db_name": db_name}
+
+    if db_instance.db is not None:
+        db_name = db_instance.db.name
+
+    return {
+        "database": status,
+        "db_name": db_name
+    }
 
 if __name__ == "__main__":
     import uvicorn
