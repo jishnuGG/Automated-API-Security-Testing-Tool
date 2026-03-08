@@ -3,6 +3,12 @@
     "name": "API Security Monitor",
     "version": "2.0",
     "description": "Real-time API security monitoring and risk assessment with 3D cyber UI.",
+    "icons": {
+        "16": "icons/logo.png",
+        "32": "icons/logo.png",
+        "48": "icons/logo.png",
+        "128": "icons/logo.png"
+    },
     "permissions": [
         "activeTab",
         "storage",
@@ -32,6 +38,12 @@
     ],
     "action": {
         "default_popup": "popup/popup.html",
-        "default_title": "API Security Monitor"
+        "default_title": "API Security Monitor",
+        "default_icon": {
+            "16": "icons/logo.png",
+            "32": "icons/logo.png",
+            "48": "icons/logo.png",
+            "128": "icons/logo.png"
+        }
     }
 }
