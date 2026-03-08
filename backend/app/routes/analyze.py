@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from app.models.logs import APILogRequest, RiskAssessment
 from app.services.ml_service import ml_service
@@ -9,23 +9,24 @@ from app.services.aggregation_service import (
     store_high_risk_log,
 )
 from app.database import get_database
+from app.dependencies.auth_dependency import get_current_user
 import sys
 
 router = APIRouter()
 
 
 @router.post("/analyze", response_model=RiskAssessment)
-async def analyze_log(log: APILogRequest):
+async def analyze_log(log: APILogRequest, current_user: dict = Depends(get_current_user)):
     """
     Analyze an API request log for security risks.
-    Now stores aggregated data per-domain instead of individual documents.
+    Requires authentication. Logs are associated with the authenticated user.
     """
     try:
         # 1. Analyze using ML Service
         assessment = ml_service.analyze(log)
 
         # 2. Aggregate into website_logs + optionally store high-risk raw log
-        await store_aggregated_log(log, assessment)
+        await store_aggregated_log(log, assessment, user_id=current_user["user_id"])
 
         return assessment
     except HTTPException:
@@ -36,10 +37,9 @@ async def analyze_log(log: APILogRequest):
 
 
 @router.get("/logs", response_model=List[dict])
-async def get_logs(limit: int = 500):
+async def get_logs(limit: int = 500, current_user: dict = Depends(get_current_user)):
     """
-    Returns high-risk raw logs from the high_risk_logs collection.
-    (Previously returned all logs from the logs collection.)
+    Returns high-risk raw logs for the authenticated user.
     """
     try:
         db = await get_database()
@@ -47,7 +47,8 @@ async def get_logs(limit: int = 500):
             print("[analyze:get_logs] no database connection available")
             return []
 
-        cursor = db.high_risk_logs.find().sort("timestamp", -1).limit(limit)
+        query = {"user_id": current_user["user_id"]}
+        cursor = db.high_risk_logs.find(query).sort("timestamp", -1).limit(limit)
         logs = await cursor.to_list(length=limit)
 
         for log in logs:
@@ -60,18 +61,18 @@ async def get_logs(limit: int = 500):
 
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(current_user: dict = Depends(get_current_user)):
     """
-    Returns aggregated risk stats computed from the website_logs collection.
-    Uses MongoDB aggregation pipeline for efficiency.
+    Returns aggregated risk stats for the authenticated user.
     """
     try:
         db = await get_database()
         if db is None:
             return {"high": 0, "medium": 0, "low": 0, "total_websites": 0, "total_requests": 0}
 
-        # Aggregate totals from website_logs
+        # Aggregate totals from website_logs for this user
         pipeline = [
+            {"$match": {"user_id": current_user["user_id"]}},
             {
                 "$group": {
                     "_id": None,
@@ -88,8 +89,6 @@ async def get_stats():
             data = result[0]
             total = data.get("total_requests", 0)
             high = data.get("high_risk_count", 0)
-            # Estimate medium as ~20% of non-high requests (heuristic)
-            # For precise counts, we'd need to track medium in the schema too
             remaining = total - high
             medium = int(remaining * 0.15)
             low = remaining - medium
@@ -108,10 +107,10 @@ async def get_stats():
         return {"high": 0, "medium": 0, "low": 0, "total_websites": 0, "total_requests": 0}
 
 
-async def store_aggregated_log(log: APILogRequest, assessment: RiskAssessment):
+async def store_aggregated_log(log: APILogRequest, assessment: RiskAssessment, user_id: str = None):
     """
-    Replace the old store_log: aggregate into website_logs,
-    and store full raw log only if high-risk.
+    Aggregate into website_logs and store full raw log only if high-risk.
+    Now includes user_id for per-user data isolation.
     """
     try:
         domain = extract_domain(log.url)
@@ -126,13 +125,14 @@ async def store_aggregated_log(log: APILogRequest, assessment: RiskAssessment):
             response_time_ms=log.response_time_ms,
             risk_score=assessment.risk_score,
             is_high_risk=is_high_risk,
+            user_id=user_id,
         )
 
         # 2. Store full raw log only for high-risk requests
         if is_high_risk:
-            await store_high_risk_log(log, assessment, domain)
+            await store_high_risk_log(log, assessment, domain, user_id=user_id)
 
-        print(f"[analyze] aggregated: domain={domain} path={endpoint_path} risk={assessment.risk_level.value}", flush=True)
+        print(f"[analyze] aggregated: domain={domain} path={endpoint_path} risk={assessment.risk_level.value} user={user_id}", flush=True)
 
     except Exception as e:
         print(f"[analyze] Failed to store aggregated log: {e}", file=sys.stderr, flush=True)

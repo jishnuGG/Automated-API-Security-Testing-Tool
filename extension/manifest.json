@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "API Security Monitor",
-    "version": "2.0",
+    "version": "2.1",
     "description": "Real-time API security monitoring and risk assessment with 3D cyber UI.",
     "icons": {
         "16": "icons/logo.png",
@@ -13,8 +13,7 @@
         "activeTab",
         "storage",
         "tabs",
-        "webRequest",
-        "webRequestBlocking"
+        "webRequest"
     ],
     "host_permissions": [
         "<all_urls>"

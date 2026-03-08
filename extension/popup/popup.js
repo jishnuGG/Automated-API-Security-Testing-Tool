@@ -11,6 +11,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const metricScanned = document.getElementById('metric-scanned');
     const metricBlocked = document.getElementById('metric-blocked');
     const metricScore = document.getElementById('metric-score');
+    const authBanner = document.getElementById('auth-banner');
+    const authStatusText = document.getElementById('auth-status-text');
+
+    // ---- AUTH STATUS CHECK ----
+    chrome.runtime.sendMessage({ type: "GET_AUTH_STATUS" }, (response) => {
+        if (chrome.runtime.lastError) {
+            updateAuthBanner(false, null);
+            return;
+        }
+        if (response) {
+            updateAuthBanner(response.authenticated, response.user);
+        } else {
+            updateAuthBanner(false, null);
+        }
+    });
+
+    function updateAuthBanner(isAuthenticated, user) {
+        if (isAuthenticated && user) {
+            authBanner.className = 'auth-banner authenticated';
+            authStatusText.innerHTML = `🟢 Logged in as <strong>${user.name || user.email}</strong>`;
+        } else {
+            authBanner.className = 'auth-banner unauthenticated';
+            authStatusText.innerHTML = '⚠ Not logged in — <a href="http://localhost:5173/login" target="_blank">Log in to dashboard</a>';
+        }
+    }
 
     // ---- STATE ----
     let scannedCount = 0;

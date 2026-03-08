@@ -665,6 +665,44 @@
             height: 14px;
         }
 
+        /* ====== AUTH STATUS BANNER ====== */
+        .auth-banner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .auth-banner.authenticated {
+            background: rgba(0, 255, 200, 0.06);
+            border: 1px solid rgba(0, 255, 200, 0.15);
+            color: rgba(0, 255, 200, 0.7);
+        }
+
+        .auth-banner.unauthenticated {
+            background: rgba(255, 170, 0, 0.08);
+            border: 1px solid rgba(255, 170, 0, 0.2);
+            color: rgba(255, 170, 0, 0.8);
+        }
+
+        .auth-banner .auth-icon {
+            font-size: 13px;
+        }
+
+        .auth-banner a {
+            color: #00ffc8;
+            text-decoration: none;
+        }
+
+        .auth-banner a:hover {
+            text-decoration: underline;
+        }
+
         /* ====== VIGNETTE ====== */
         .vignette {
             position: fixed;
@@ -709,6 +747,12 @@
                 <h1>API Shield</h1>
                 <div class="subtitle">Security Monitor v2.0</div>
             </div>
+        </div>
+
+        <!-- Auth Status Banner -->
+        <div class="auth-banner unauthenticated" id="auth-banner">
+            <span class="auth-icon">🔒</span>
+            <span id="auth-status-text">Checking auth status...</span>
         </div>
 
         <!-- Status Panel -->

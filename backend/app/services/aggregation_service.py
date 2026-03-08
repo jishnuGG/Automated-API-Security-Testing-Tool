@@ -43,6 +43,7 @@ async def upsert_website_log(
     response_time_ms: float,
     risk_score: float,
     is_high_risk: bool,
+    user_id: str = None,
 ) -> None:
     """
     Upsert aggregated website log using atomic MongoDB operations.
@@ -60,15 +61,18 @@ async def upsert_website_log(
     now = datetime.utcnow()
     collection = db.website_logs
 
+    # Build the base filter — include user_id if provided
+    base_filter = {"domain": domain}
+    if user_id:
+        base_filter["user_id"] = user_id
+
     # Step 1: Update domain-level counters + try to update existing endpoint
     high_risk_inc = 1 if is_high_risk else 0
 
+    endpoint_filter = {**base_filter, "endpoints.path": endpoint_path, "endpoints.method": method}
+
     result = await collection.update_one(
-        {
-            "domain": domain,
-            "endpoints.path": endpoint_path,
-            "endpoints.method": method,
-        },
+        endpoint_filter,
         {
             "$inc": {
                 "total_requests": 1,
@@ -95,11 +99,7 @@ async def upsert_website_log(
         # Recalculate avg_response_time_ms for the matched endpoint
         # We need a pipeline update for this
         await collection.update_one(
-            {
-                "domain": domain,
-                "endpoints.path": endpoint_path,
-                "endpoints.method": method,
-            },
+            endpoint_filter,
             [
                 {
                     "$set": {
@@ -147,7 +147,7 @@ async def upsert_website_log(
 
     # Step 2: Endpoint doesn't exist yet — try to update existing domain doc + push new endpoint
     result = await collection.update_one(
-        {"domain": domain},
+        base_filter,
         {
             "$inc": {
                 "total_requests": 1,
@@ -173,12 +173,19 @@ async def upsert_website_log(
         },
         upsert=True,
     )
+    # If this was a new document (upsert), ensure user_id is set
+    if result.upserted_id and user_id:
+        await collection.update_one(
+            {"_id": result.upserted_id},
+            {"$set": {"user_id": user_id}},
+        )
 
 
 async def store_high_risk_log(
     log: APILogRequest,
     assessment: RiskAssessment,
     domain: str,
+    user_id: str = None,
 ) -> None:
     """Store full raw log for high-risk requests in a separate collection."""
     db = await get_database()
@@ -191,6 +198,8 @@ async def store_high_risk_log(
     document.update(assessment.model_dump())
     document["domain"] = domain
     document["created_at"] = now
+    if user_id:
+        document["user_id"] = user_id
 
     await db.high_risk_logs.insert_one(document)
     print(f"[aggregation] stored high-risk log: domain={domain} url={log.url}", flush=True)

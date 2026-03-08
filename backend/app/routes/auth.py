@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.models.user import UserCreate, UserLogin, OTPRequest, OTPVerify, Token
 from app.services.auth_service import (
     hash_password, verify_password, create_access_token,
@@ -6,6 +6,7 @@ from app.services.auth_service import (
 )
 from app.database import get_database
 from app.config import get_settings
+from app.dependencies.auth_dependency import get_current_user
 
 router = APIRouter()
 settings = get_settings()
@@ -87,7 +88,7 @@ async def verify_registration_otp(data: OTPVerify):
         "otp_expires_at": None,
     })
 
-    token = create_access_token({"sub": user["email"], "name": user["name"]})
+    token = create_access_token({"sub": user["email"], "name": user["name"], "user_id": str(user["_id"])})
     return Token(
         access_token=token,
         user={"name": user["name"], "email": user["email"]}
@@ -104,7 +105,7 @@ async def login(credentials: UserLogin):
     if not verify_password(credentials.password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token({"sub": user["email"], "name": user["name"]})
+    token = create_access_token({"sub": user["email"], "name": user["name"], "user_id": str(user["_id"])})
     return Token(
         access_token=token,
         user={"name": user["name"], "email": user["email"]}
@@ -150,17 +151,17 @@ async def login_with_otp(data: OTPVerify):
 
     await _update_user(data.email, {"otp_secret": None, "otp_expires_at": None})
 
-    token = create_access_token({"sub": user["email"], "name": user["name"]})
+    token = create_access_token({"sub": user["email"], "name": user["name"], "user_id": str(user["_id"])})
     return Token(
         access_token=token,
         user={"name": user["name"], "email": user["email"]}
     )
 
-# ─── Get current user (optional, for frontend validation) ────────────────────
+# ─── Get current user (for frontend/extension validation) ────────────────────
 @router.get("/me")
-async def get_me(token: str):
-    from app.services.auth_service import decode_access_token
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return {"email": payload.get("sub"), "name": payload.get("name")}
+async def get_me(current_user: dict = Depends(get_current_user)):
+    return {
+        "user_id": current_user["user_id"],
+        "email": current_user["email"],
+        "name": current_user["name"],
+    }

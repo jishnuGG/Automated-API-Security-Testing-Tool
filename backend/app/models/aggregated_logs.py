@@ -17,6 +17,7 @@ class EndpointStats(BaseModel):
 class WebsiteLog(BaseModel):
     """Aggregated log document per website/domain."""
     id: Optional[str] = None
+    user_id: str = Field(..., description="Owner user ID from JWT")
     domain: str = Field(..., description="Website domain (e.g., youtube.com)")
     total_requests: int = Field(0, description="Total API requests from this domain")
     high_risk_count: int = Field(0, description="Number of high-risk requests")
@@ -31,6 +32,7 @@ class WebsiteLog(BaseModel):
 class HighRiskLog(BaseModel):
     """Full raw log stored only for high-risk API requests."""
     id: Optional[str] = None
+    user_id: str = Field(..., description="Owner user ID from JWT")
     domain: str
     url: str
     method: str

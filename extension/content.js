@@ -1,8 +1,84 @@
-// content.js - Intercept API calls
+// content.js - API Security Monitor Extension
+// 1. Token Bridge: reads JWT from frontend localStorage and sends to background
+// 2. API Interceptor: captures fetch/XHR calls and forwards to background
+
 (function () {
     console.log("API Security Monitor: Active");
 
-    // Helper to send log to background
+    // ─────────────────────────────────────────────
+    // TOKEN BRIDGE — Read auth_token from localStorage
+    // ─────────────────────────────────────────────
+
+    const FRONTEND_ORIGINS = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ];
+
+    function isFrontendPage() {
+        return FRONTEND_ORIGINS.some(origin => window.location.origin === origin);
+    }
+
+    function sendTokenToBg() {
+        if (!isFrontendPage()) return;
+
+        try {
+            const token = localStorage.getItem("auth_token");
+            const userRaw = localStorage.getItem("auth_user");
+
+            if (token) {
+                chrome.runtime.sendMessage({
+                    type: "AUTH_TOKEN",
+                    token: token,
+                    user: userRaw ? JSON.parse(userRaw) : null,
+                });
+            } else {
+                // User logged out — notify background
+                chrome.runtime.sendMessage({ type: "AUTH_LOGOUT" });
+            }
+        } catch (e) {
+            // Extension context may be invalidated
+        }
+    }
+
+    // Send token immediately on page load
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", sendTokenToBg);
+    } else {
+        sendTokenToBg();
+    }
+
+    // Listen for storage changes (login/logout from another tab or same tab)
+    window.addEventListener("storage", (event) => {
+        if (event.key === "auth_token" || event.key === "auth_user") {
+            sendTokenToBg();
+        }
+    });
+
+    // Listen for custom events dispatched by the frontend React app
+    // This catches same-tab login/logout which the 'storage' event misses
+    window.addEventListener("auth_token_changed", () => {
+        sendTokenToBg();
+    });
+
+    // Poll periodically to catch token changes (fallback)
+    let lastKnownToken = null;
+    setInterval(() => {
+        if (!isFrontendPage()) return;
+        try {
+            const currentToken = localStorage.getItem("auth_token");
+            if (currentToken !== lastKnownToken) {
+                lastKnownToken = currentToken;
+                sendTokenToBg();
+            }
+        } catch (e) { }
+    }, 3000);
+
+    // ─────────────────────────────────────────────
+    // API INTERCEPTOR — Capture fetch/XHR calls
+    // ─────────────────────────────────────────────
+
     function sendLog(data) {
         try {
             chrome.runtime.sendMessage({
@@ -14,7 +90,6 @@
         }
     }
 
-    // specific headers to check for presence
     const SENSITIVE_HEADERS = ['authorization', 'x-api-key', 'cookie'];
 
     // 1. Intercept fetch
@@ -30,7 +105,6 @@
             const response = await originalFetch.apply(this, args);
             const endTime = Date.now();
 
-            // Extract headers if possible (Fetch API headers are tricky to iterate sometimes depending on mode)
             let headersList = {};
             if (config && config.headers) {
                 if (config.headers instanceof Headers) {
@@ -51,13 +125,12 @@
 
             return response;
         } catch (error) {
-            // Log failed requests too
             const endTime = Date.now();
             sendLog({
                 url: url,
                 method: method,
                 headers: {},
-                status_code: 0, // Network error
+                status_code: 0,
                 response_time_ms: endTime - startTime,
                 timestamp: new Date().toISOString()
             });

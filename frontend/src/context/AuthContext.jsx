@@ -24,6 +24,8 @@ export function AuthProvider({ children }) {
         setUser(tokenData.user);
         localStorage.setItem('auth_token', tokenData.access_token);
         localStorage.setItem('auth_user', JSON.stringify(tokenData.user));
+        // Notify extension content script about token change
+        window.dispatchEvent(new CustomEvent('auth_token_changed'));
     };
 
     const logout = () => {
@@ -31,6 +33,8 @@ export function AuthProvider({ children }) {
         setUser(null);
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
+        // Notify extension content script about logout
+        window.dispatchEvent(new CustomEvent('auth_token_changed'));
     };
 
     return (

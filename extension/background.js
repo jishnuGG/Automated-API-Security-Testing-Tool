@@ -1,6 +1,7 @@
 // background.js - API Security Monitor Extension
 // Captures ALL network requests from any tab using webRequest API
 // and forwards them to the backend for ML-based risk analysis.
+// Now includes JWT authentication via the Token Bridge.
 
 const BACKEND_URL = "http://localhost:8000/api/v1/analyze";
 
@@ -9,6 +10,36 @@ const requestTimestamps = new Map();
 
 // Track headers captured before request is sent
 const requestHeadersMap = new Map();
+
+// ─────────────────────────────────────────────
+// AUTH: Token management via Token Bridge
+// ─────────────────────────────────────────────
+let cachedAuthToken = null;
+let cachedAuthUser = null;
+
+// Load token from chrome.storage on startup
+chrome.storage.local.get(["auth_token", "auth_user"], (result) => {
+    if (result.auth_token) {
+        cachedAuthToken = result.auth_token;
+        cachedAuthUser = result.auth_user || null;
+        console.log("[Auth] Token loaded from storage");
+    }
+});
+
+/**
+ * Get the current auth token.
+ * Returns null if user is not authenticated.
+ */
+function getAuthToken() {
+    return cachedAuthToken;
+}
+
+/**
+ * Get the current authenticated user info.
+ */
+function getAuthUser() {
+    return cachedAuthUser;
+}
 
 // ─────────────────────────────────────────────
 // 1. Capture request start
@@ -107,12 +138,59 @@ chrome.webRequest.onErrorOccurred.addListener(
 );
 
 // ─────────────────────────────────────────────
-// 5. Receive logs from content.js
+// 5. Receive messages from content.js and popup
 // ─────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
+    // Token Bridge: receive auth token from content script
+    if (message.type === "AUTH_TOKEN") {
+        cachedAuthToken = message.token;
+        cachedAuthUser = message.user || null;
+
+        // Persist to chrome.storage for service worker restarts
+        chrome.storage.local.set({
+            auth_token: message.token,
+            auth_user: message.user || null,
+        });
+
+        console.log("[Auth] Token received from content script");
+
+        // Update extension badge to show authenticated
+        chrome.action.setBadgeText({ text: "✓" });
+        chrome.action.setBadgeBackgroundColor({ color: "#00CC66" });
+
+        return;
+    }
+
+    // Token Bridge: user logged out
+    if (message.type === "AUTH_LOGOUT") {
+        cachedAuthToken = null;
+        cachedAuthUser = null;
+
+        chrome.storage.local.remove(["auth_token", "auth_user"]);
+
+        console.log("[Auth] User logged out, token cleared");
+
+        // Update badge to show unauthenticated
+        chrome.action.setBadgeText({ text: "!" });
+        chrome.action.setBadgeBackgroundColor({ color: "#FF6600" });
+
+        return;
+    }
+
+    // API log from content.js
     if (message.type === "API_LOG") {
         processLog(message.payload);
+        return;
+    }
+
+    // Popup requesting auth status
+    if (message.type === "GET_AUTH_STATUS") {
+        sendResponse({
+            authenticated: !!cachedAuthToken,
+            user: cachedAuthUser,
+        });
+        return true; // keep message channel open for async response
     }
 
 });
@@ -146,11 +224,18 @@ function isDuplicate(logData) {
 }
 
 // ─────────────────────────────────────────────
-// 7. Send log to backend
+// 7. Send log to backend (with JWT auth)
 // ─────────────────────────────────────────────
 async function processLog(logData) {
 
     if (isDuplicate(logData)) return;
+
+    // Check authentication — skip sending if not logged in
+    const token = getAuthToken();
+    if (!token) {
+        // Silently skip — user is not authenticated
+        return;
+    }
 
     const auth_present =
         logData.headers?.authorization === "PRESENT" ||
@@ -180,17 +265,39 @@ async function processLog(logData) {
 
         const response = await fetch(BACKEND_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+            },
             body: JSON.stringify(payload)
         });
+
+        // Handle expired/invalid token
+        if (response.status === 401) {
+            console.warn("[Auth] Token expired or invalid, clearing auth");
+            cachedAuthToken = null;
+            cachedAuthUser = null;
+            chrome.storage.local.remove(["auth_token", "auth_user"]);
+            chrome.action.setBadgeText({ text: "!" });
+            chrome.action.setBadgeBackgroundColor({ color: "#FF6600" });
+            return;
+        }
 
         if (!response.ok) throw new Error(`Backend error: ${response.status}`);
 
         const assessment = await response.json();
 
         if (assessment.risk_level === "High") {
-            chrome.action.setBadgeText({ text: "!" });
+            chrome.action.setBadgeText({ text: "⚠" });
             chrome.action.setBadgeBackgroundColor({ color: "#FF0000" });
+
+            // Reset to auth badge after 5 seconds
+            setTimeout(() => {
+                if (cachedAuthToken) {
+                    chrome.action.setBadgeText({ text: "✓" });
+                    chrome.action.setBadgeBackgroundColor({ color: "#00CC66" });
+                }
+            }, 5000);
         }
 
         chrome.runtime.sendMessage({
