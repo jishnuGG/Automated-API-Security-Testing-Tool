@@ -5,6 +5,7 @@ from app.config import get_settings
 from app.database import db_instance
 from app.routes import analyze
 from app.routes import auth
+from app.routes import websites
 
 settings = get_settings()
 
@@ -25,6 +26,7 @@ app = FastAPI(
 # Include Routers
 app.include_router(analyze.router, prefix="/api/v1", tags=["Analysis"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(websites.router, prefix="/api/v1", tags=["Websites"])
 
 # CORS Middleware
 app.add_middleware(

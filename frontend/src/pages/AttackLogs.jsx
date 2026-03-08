@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import RiskBadge from '../components/RiskBadge';
 
 const RefreshIcon = () => (
@@ -14,9 +14,10 @@ const DownloadIcon = () => (
 );
 
 const exportCSV = (logs) => {
-    const headers = ['ID', 'Timestamp', 'Method', 'URL', 'Status Code', 'ML Probability', 'Heuristic Score', 'Risk Score', 'Risk Level', 'Is HTTPS', 'Reasons'];
+    const headers = ['ID', 'Domain', 'Timestamp', 'Method', 'URL', 'Status Code', 'ML Probability', 'Heuristic Score', 'Risk Score', 'Risk Level', 'Is HTTPS', 'Reasons'];
     const rows = logs.map((log) => [
         (log._id || '').toString().substring(0, 8),
+        log.domain || '',
         log.timestamp ? new Date(log.timestamp).toLocaleString('en-IN') : '',
         log.method || '',
         `"${(log.url || '').replace(/"/g, '""')}"`,
@@ -33,23 +34,45 @@ const exportCSV = (logs) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `api_security_logs_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `high_risk_logs_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
 };
 
 const AttackLogs = ({ logs, darkMode, onRefresh }) => {
+    const [domainFilter, setDomainFilter] = useState('all');
+
+    // Get unique domains from logs
+    const domains = [...new Set(logs.map(l => l.domain).filter(Boolean))].sort();
+
+    const filtered = domainFilter === 'all'
+        ? logs
+        : logs.filter(l => l.domain === domainFilter);
+
     return (
         <div className="p-8 space-y-5">
             {/* Header row */}
             <div className="flex items-center justify-between">
                 <div>
-                    {/* Title handled by Header component, show a sub-count here */}
                     <p className={`text-xs font-mono ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-                        {logs.length} records in database
+                        {filtered.length} high-risk records {domainFilter !== 'all' ? `from ${domainFilter}` : 'total'}
                     </p>
                 </div>
                 <div className="flex gap-3">
+                    {/* Domain filter */}
+                    <select
+                        value={domainFilter}
+                        onChange={(e) => setDomainFilter(e.target.value)}
+                        className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all outline-none
+                            ${darkMode
+                                ? 'bg-[#111111] border-[#1e1e1e] text-gray-400'
+                                : 'bg-white border-gray-200 text-gray-500'}`}
+                    >
+                        <option value="all">All Domains</option>
+                        {domains.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                        ))}
+                    </select>
                     <button
                         onClick={onRefresh}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-all
@@ -58,7 +81,7 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                         <RefreshIcon /> REFRESH
                     </button>
                     <button
-                        onClick={() => exportCSV(logs)}
+                        onClick={() => exportCSV(filtered)}
                         className="flex items-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/40 text-cyan-400 text-sm font-medium hover:bg-cyan-500/10 transition-all"
                     >
                         <DownloadIcon /> EXPORT CSV
@@ -73,35 +96,39 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                         <thead>
                             <tr>
                                 <th>ID</th>
+                                <th>Domain</th>
                                 <th>Timestamp</th>
                                 <th>Method</th>
                                 <th>URL</th>
                                 <th>ML Prob</th>
                                 <th>Risk Score</th>
                                 <th>Risk Level</th>
-                                <th>Anomaly</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {logs.length === 0 ? (
+                            {filtered.length === 0 ? (
                                 <tr>
                                     <td colSpan={8} className={`text-center py-12 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-                                        No logs yet. Install the Chrome extension and browse some sites to capture API traffic.
+                                        No high-risk logs recorded yet. Only high-risk API calls are stored here for investigation.
                                     </td>
                                 </tr>
                             ) : (
-                                logs.map((log, i) => {
+                                filtered.map((log, i) => {
                                     const id = (log._id || '').toString().substring(0, 8);
                                     const url = log.url || '';
                                     const shortUrl = url.length > 40 ? url.substring(0, 40) + '…' : url;
                                     const time = log.timestamp
                                         ? new Date(log.timestamp).toLocaleString('en-IN')
                                         : '—';
-                                    const isAnomaly = (log.risk_level || '').toLowerCase() !== 'low';
 
                                     return (
                                         <tr key={i}>
                                             <td className="font-mono text-xs text-gray-500">{id || `log-${i}`}</td>
+                                            <td>
+                                                <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${darkMode ? 'bg-cyan-500/10 text-cyan-400' : 'bg-cyan-50 text-cyan-600'}`}>
+                                                    {log.domain || '—'}
+                                                </span>
+                                            </td>
                                             <td className="font-mono text-xs">{time}</td>
                                             <td>
                                                 <span className={`text-xs font-mono font-medium px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
@@ -120,11 +147,6 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                                                     : '—'}
                                             </td>
                                             <td><RiskBadge level={log.risk_level} /></td>
-                                            <td className="text-center">
-                                                {isAnomaly
-                                                    ? <span className="text-green-400 text-base">✓</span>
-                                                    : <span className="text-gray-700">—</span>}
-                                            </td>
                                         </tr>
                                     );
                                 })
@@ -133,7 +155,7 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                     </table>
                 </div>
                 <div className={`px-4 py-3 border-t text-xs flex items-center justify-between ${darkMode ? 'border-[#1e1e1e] text-gray-600' : 'border-gray-200 text-gray-400'}`}>
-                    <span>Total: {logs.length} records</span>
+                    <span>Showing: {filtered.length} high-risk records</span>
                     <span>Auto-refreshes every 5 seconds</span>
                 </div>
             </div>
