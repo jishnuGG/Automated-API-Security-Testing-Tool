@@ -349,7 +349,7 @@ const ExportModal = ({ isOpen, onClose, darkMode, onExport }) => {
                         `}
                     >
                         <DownloadIcon />
-                        {exporting ? 'Exporting...' : 'Export CSV'}
+                        {exporting ? '...' : 'CSV'}
                     </button>
                     <button
                         onClick={() => handleExport('xlsx')}
@@ -364,7 +364,22 @@ const ExportModal = ({ isOpen, onClose, darkMode, onExport }) => {
                         `}
                     >
                         <DownloadIcon />
-                        {exporting ? 'Exporting...' : 'Export Excel'}
+                        {exporting ? '...' : 'Excel'}
+                    </button>
+                    <button
+                        onClick={() => handleExport('pdf')}
+                        disabled={selected.size === 0 || exporting}
+                        className={`
+                            flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold font-mono
+                            transition-all duration-200
+                            ${selected.size === 0 || exporting
+                                ? 'opacity-40 cursor-not-allowed bg-gray-800 text-gray-600'
+                                : 'bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-400 hover:to-rose-400 shadow-lg shadow-red-500/20'
+                            }
+                        `}
+                    >
+                        <DownloadIcon />
+                        {exporting ? '...' : 'PDF Report'}
                     </button>
                 </div>
             </div>

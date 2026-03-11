@@ -147,16 +147,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.risk_level === 'High') badgeClass = 'high';
         else if (data.risk_level === 'Medium') badgeClass = 'medium';
 
-        // Truncate URL for display
-        const displayUrl = data.log_id
-            ? 'Request Analyzed'
-            : (data.url && data.url.length > 35 ? data.url.substring(0, 32) + '...' : (data.url || 'Unknown'));
+        // Threat classification label — replaces the old "Unknown" display
+        const threatLabel = data.threat_label || (
+            data.risk_score < 0.3 ? 'Secured API'
+                : data.risk_score <= 0.6 ? `Potential Risk: ${data.threat_type || 'Anomaly'}`
+                    : `Critical Threat: ${data.threat_type || 'Unknown'}`
+        );
+
+        // Color for threat label
+        let labelClass = 'log-threat-safe';
+        if (data.risk_level === 'High') labelClass = 'log-threat-critical';
+        else if (data.risk_level === 'Medium') labelClass = 'log-threat-warning';
 
         item.innerHTML = `
             <div class="log-risk-badge ${badgeClass}">${data.risk_level}</div>
             <div class="log-details">
-                <div class="log-url">${displayUrl}</div>
-                <div class="log-score">RISK SCORE: ${data.risk_score} • ${new Date().toLocaleTimeString()}</div>
+                <div class="log-threat-label ${labelClass}">${threatLabel}</div>
+                <div class="log-score">SCORE: ${data.risk_score} • ${new Date().toLocaleTimeString()}</div>
             </div>
         `;
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import RiskBadge from '../components/RiskBadge';
 import ExportModal from '../components/ExportModal';
+import UrlCell from '../components/UrlCell';
 import { exportLogs } from '../services/api';
 
 const RefreshIcon = () => (
@@ -82,6 +83,8 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                                 <th>Timestamp</th>
                                 <th>Method</th>
                                 <th>URL</th>
+                                <th>Threat Type</th>
+                                <th>OWASP</th>
                                 <th>ML Prob</th>
                                 <th>Risk Score</th>
                                 <th>Risk Level</th>
@@ -90,7 +93,7 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className={`text-center py-12 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                                    <td colSpan={10} className={`text-center py-12 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
                                         No high-risk logs recorded yet. Only high-risk API calls are stored here for investigation.
                                     </td>
                                 </tr>
@@ -98,7 +101,6 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                                 filtered.map((log, i) => {
                                     const id = (log._id || '').toString().substring(0, 8);
                                     const url = log.url || '';
-                                    const shortUrl = url.length > 40 ? url.substring(0, 40) + '…' : url;
                                     const time = log.timestamp
                                         ? new Date(log.timestamp).toLocaleString('en-IN')
                                         : '—';
@@ -117,7 +119,26 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                                                     {log.method || 'GET'}
                                                 </span>
                                             </td>
-                                            <td className="font-mono text-xs max-w-xs" title={url}>{shortUrl}</td>
+                                            <td>
+                                                <UrlCell url={url} darkMode={darkMode} />
+                                            </td>
+                                            <td>
+                                                <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${(log.threat_type || '').includes('SQL') || (log.threat_type || '').includes('XSS')
+                                                    ? 'bg-red-500/10 text-red-400'
+                                                    : (log.threat_type || '').includes('Authentication') || (log.threat_type || '').includes('Token')
+                                                        ? 'bg-amber-500/10 text-amber-400'
+                                                        : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+                                                    }`}>
+                                                    {log.threat_type || 'General Anomaly'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {log.owasp_category && (
+                                                    <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-500/10 text-purple-400' : 'bg-purple-50 text-purple-600'}`}>
+                                                        {log.owasp_category}
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td className="font-mono text-sm">
                                                 {log.ml_probability !== undefined
                                                     ? <span className="text-cyan-400">{(log.ml_probability * 100).toFixed(1)}%</span>

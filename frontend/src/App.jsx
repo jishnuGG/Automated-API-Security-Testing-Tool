@@ -9,7 +9,7 @@ import AttackLogs from './pages/AttackLogs'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ProtectedRoute from './components/ProtectedRoute'
-import { fetchLogs, fetchStats, fetchWebsites } from './services/api'
+import { fetchLogs, fetchStats, fetchWebsites, fetchMetrics } from './services/api'
 import { useAuth } from './context/AuthContext'
 
 function DashboardLayout() {
@@ -20,17 +20,20 @@ function DashboardLayout() {
     const [stats, setStats] = useState({ high: 0, medium: 0, low: 0, total_websites: 0, total_requests: 0 })
     const [websites, setWebsites] = useState([])
     const [loading, setLoading] = useState(true)
+    const [metrics, setMetrics] = useState(null)
 
     const loadData = useCallback(async () => {
         try {
-            const [logsData, statsData, websitesData] = await Promise.all([
+            const [logsData, statsData, websitesData, metricsData] = await Promise.all([
                 fetchLogs(500),
                 fetchStats(),
                 fetchWebsites(100),
+                fetchMetrics(),
             ])
             setLogs(logsData)
             setStats(statsData)
             setWebsites(websitesData)
+            if (metricsData) setMetrics(metricsData)
         } catch (err) {
             console.error('Failed to load data:', err)
         } finally {
@@ -60,7 +63,7 @@ function DashboardLayout() {
         switch (currentPage) {
             case 'analysis': return <ThreatAnalysis logs={logs} darkMode={darkMode} />
             case 'logs': return <AttackLogs logs={logs} darkMode={darkMode} onRefresh={loadData} />
-            default: return <Dashboard logs={logs} stats={stats} websites={websites} darkMode={darkMode} />
+            default: return <Dashboard logs={logs} stats={stats} websites={websites} darkMode={darkMode} metrics={metrics} />
         }
     }
 

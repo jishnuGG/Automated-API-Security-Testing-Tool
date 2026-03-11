@@ -1,6 +1,9 @@
 import React from 'react';
 import RiskChart from '../components/RiskChart';
 import RiskBadge from '../components/RiskBadge';
+import PerformanceMetrics from '../components/PerformanceMetrics';
+import ThreatDistributionChart from '../components/ThreatDistributionChart';
+import ActivityTimeline from '../components/ActivityTimeline';
 
 const StatCard = ({ label, value, sub, color, icon, darkMode }) => (
     <div className={`
@@ -19,7 +22,7 @@ const StatCard = ({ label, value, sub, color, icon, darkMode }) => (
     </div>
 );
 
-const Dashboard = ({ logs, stats, websites = [], darkMode }) => {
+const Dashboard = ({ logs, stats, websites = [], darkMode, metrics }) => {
     const total = stats.total_requests || ((stats.high || 0) + (stats.medium || 0) + (stats.low || 0));
     const recentThreats = [...logs].slice(0, 8);
 
@@ -39,80 +42,87 @@ const Dashboard = ({ logs, stats, websites = [], darkMode }) => {
                 ))}
             </div>
 
-            {/* Middle row: Chart + Top Websites */}
-            <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-                {/* Attack Distribution Chart */}
+            {/* Performance Metrics */}
+            <PerformanceMetrics metrics={metrics} darkMode={darkMode} />
+
+            {/* Charts Row: Attack Distribution + Threat Distribution */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <div className={`
-          xl:col-span-2 p-6 rounded-lg border
-          ${darkMode ? 'bg-[#111111] border-[#1e1e1e]' : 'bg-white border-gray-200 shadow-sm'}
-        `}>
+                    p-6 rounded-lg border
+                    ${darkMode ? 'bg-[#111111] border-[#1e1e1e]' : 'bg-white border-gray-200 shadow-sm'}
+                `}>
                     <h2 className={`text-xs font-semibold tracking-widest uppercase mb-6 font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                         Attack Distribution
                     </h2>
                     <RiskChart stats={stats} darkMode={darkMode} />
                 </div>
 
-                {/* Top Websites - NEW */}
-                <div className={`
-          xl:col-span-3 p-6 rounded-lg border flex flex-col
-          ${darkMode ? 'bg-[#111111] border-[#1e1e1e]' : 'bg-white border-gray-200 shadow-sm'}
-        `}>
-                    <h2 className={`text-xs font-semibold tracking-widest uppercase mb-4 font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        🌐 Top Websites by Activity
-                    </h2>
-                    <div className="flex flex-col gap-0 overflow-y-auto flex-1" style={{ maxHeight: 280 }}>
-                        {websites.length === 0 ? (
-                            <div className={`text-sm text-center py-10 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-                                No website activity recorded yet.
-                            </div>
-                        ) : (
-                            websites.slice(0, 10).map((site, i) => {
-                                const lastSeen = site.last_seen
-                                    ? new Date(site.last_seen).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                                    : '—';
-                                const hasHighRisk = (site.high_risk_count || 0) > 0;
-                                return (
-                                    <div key={i} className={`
-                        flex items-center justify-between py-3 border-b group
-                        ${darkMode ? 'border-[#1a1a1a] hover:bg-[#161616]' : 'border-gray-100 hover:bg-gray-50'}
-                      `}>
-                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            <span className={`text-xs font-mono font-semibold px-2 py-1 rounded min-w-[2rem] text-center
-                                                ${hasHighRisk
-                                                    ? 'bg-red-500/10 text-red-400'
-                                                    : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-                                                {site.total_requests || 0}
+                <ThreatDistributionChart metrics={metrics} darkMode={darkMode} />
+            </div>
+
+            {/* Activity Timeline */}
+            <ActivityTimeline logs={logs} darkMode={darkMode} />
+
+            {/* Middle row: Top Websites */}
+            <div className={`
+                p-6 rounded-lg border flex flex-col
+                ${darkMode ? 'bg-[#111111] border-[#1e1e1e]' : 'bg-white border-gray-200 shadow-sm'}
+            `}>
+                <h2 className={`text-xs font-semibold tracking-widest uppercase mb-4 font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    🌐 Top Websites by Activity
+                </h2>
+                <div className="flex flex-col gap-0 overflow-y-auto flex-1" style={{ maxHeight: 280 }}>
+                    {websites.length === 0 ? (
+                        <div className={`text-sm text-center py-10 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                            No website activity recorded yet.
+                        </div>
+                    ) : (
+                        websites.slice(0, 10).map((site, i) => {
+                            const lastSeen = site.last_seen
+                                ? new Date(site.last_seen).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                                : '—';
+                            const hasHighRisk = (site.high_risk_count || 0) > 0;
+                            return (
+                                <div key={i} className={`
+                                    flex items-center justify-between py-3 border-b group
+                                    ${darkMode ? 'border-[#1a1a1a] hover:bg-[#161616]' : 'border-gray-100 hover:bg-gray-50'}
+                                `}>
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <span className={`text-xs font-mono font-semibold px-2 py-1 rounded min-w-[2rem] text-center
+                                            ${hasHighRisk
+                                                ? 'bg-red-500/10 text-red-400'
+                                                : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                                            {site.total_requests || 0}
+                                        </span>
+                                        <span className={`text-sm font-medium truncate ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            {site.domain}
+                                        </span>
+                                        {hasHighRisk && (
+                                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
+                                                {site.high_risk_count} HIGH
                                             </span>
-                                            <span className={`text-sm font-medium truncate ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                                {site.domain}
-                                            </span>
-                                            {hasHighRisk && (
-                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
-                                                    {site.high_risk_count} HIGH
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-3 shrink-0">
-                                            <span className={`text-xs font-mono ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-                                                {site.endpoint_count || 0} endpoints
-                                            </span>
-                                            <span className={`text-xs font-mono ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
-                                                {lastSeen}
-                                            </span>
-                                        </div>
+                                        )}
                                     </div>
-                                );
-                            })
-                        )}
-                    </div>
+                                    <div className="flex items-center gap-3 shrink-0">
+                                        <span className={`text-xs font-mono ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                                            {site.endpoint_count || 0} endpoints
+                                        </span>
+                                        <span className={`text-xs font-mono ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                                            {lastSeen}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
             </div>
 
             {/* Recent High-Risk Threats */}
             <div className={`
-        p-6 rounded-lg border flex flex-col
-        ${darkMode ? 'bg-[#111111] border-[#1e1e1e]' : 'bg-white border-gray-200 shadow-sm'}
-      `}>
+                p-6 rounded-lg border flex flex-col
+                ${darkMode ? 'bg-[#111111] border-[#1e1e1e]' : 'bg-white border-gray-200 shadow-sm'}
+            `}>
                 <h2 className={`text-xs font-semibold tracking-widest uppercase mb-4 font-mono ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                     ⚠ Recent High-Risk Threats
                 </h2>
@@ -130,14 +140,19 @@ const Dashboard = ({ logs, stats, websites = [], darkMode }) => {
                                 : '—';
                             return (
                                 <div key={i} className={`
-                    flex items-center justify-between py-3 border-b group
-                    ${darkMode ? 'border-[#1a1a1a] hover:bg-[#161616]' : 'border-gray-100 hover:bg-gray-50'}
-                  `}>
+                                    flex items-center justify-between py-3 border-b group
+                                    ${darkMode ? 'border-[#1a1a1a] hover:bg-[#161616]' : 'border-gray-100 hover:bg-gray-50'}
+                                `}>
                                     <div className="flex items-center gap-3 flex-1 min-w-0">
                                         <span className={`text-xs font-mono font-medium px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
                                             {log.method || 'GET'}
                                         </span>
                                         <RiskBadge level={log.risk_level} />
+                                        {log.threat_type && log.threat_type !== 'General Anomaly' && (
+                                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${darkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-500'}`}>
+                                                {log.threat_type}
+                                            </span>
+                                        )}
                                         {log.domain && (
                                             <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${darkMode ? 'bg-cyan-500/10 text-cyan-400' : 'bg-cyan-50 text-cyan-600'}`}>
                                                 {log.domain}

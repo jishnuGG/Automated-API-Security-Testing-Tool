@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import RiskBadge from '../components/RiskBadge';
+import UrlCell from '../components/UrlCell';
+import DetailsModal from '../components/DetailsModal';
 
 const SearchIcon = () => (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -16,7 +18,7 @@ const FilterIcon = () => (
 const ThreatAnalysis = ({ logs, darkMode }) => {
     const [search, setSearch] = useState('');
     const [riskFilter, setRiskFilter] = useState('all');
-    const [expandedId, setExpandedId] = useState(null);
+    const [selectedLog, setSelectedLog] = useState(null);
 
     const filtered = logs.filter((log) => {
         const q = search.toLowerCase();
@@ -24,7 +26,9 @@ const ThreatAnalysis = ({ logs, darkMode }) => {
             !q ||
             (log.url || '').toLowerCase().includes(q) ||
             (log.method || '').toLowerCase().includes(q) ||
-            (log.risk_level || '').toLowerCase().includes(q);
+            (log.risk_level || '').toLowerCase().includes(q) ||
+            (log.threat_type || '').toLowerCase().includes(q) ||
+            (log.owasp_category || '').toLowerCase().includes(q);
         const matchRisk =
             riskFilter === 'all' ||
             (log.risk_level || '').toLowerCase() === riskFilter;
@@ -44,7 +48,7 @@ const ThreatAnalysis = ({ logs, darkMode }) => {
                     <span className="absolute left-3"><SearchIcon /></span>
                     <input
                         className={`${inputBase} pl-9`}
-                        placeholder="Search by URL, method, or risk level..."
+                        placeholder="Search by URL, method, risk level, threat type, or OWASP..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -76,24 +80,26 @@ const ThreatAnalysis = ({ logs, darkMode }) => {
                                 <th>Status</th>
                                 <th>Risk Score</th>
                                 <th>Risk Level</th>
+                                <th>Threat Type</th>
+                                <th>OWASP</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className={`text-center py-12 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                                    <td colSpan={9} className={`text-center py-12 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>
                                         No results found
                                     </td>
                                 </tr>
                             ) : (
                                 filtered.map((log, i) => {
                                     const url = log.url || '';
-                                    const shortUrl = url.length > 50 ? url.substring(0, 50) + '…' : url;
                                     const time = log.timestamp
                                         ? new Date(log.timestamp).toLocaleString('en-IN')
                                         : '—';
-                                    const isExpanded = expandedId === i;
+                                    const threatType = log.threat_type || 'General Anomaly';
+                                    const owaspCat = log.owasp_category || '';
 
                                     return (
                                         <React.Fragment key={i}>
@@ -104,11 +110,13 @@ const ThreatAnalysis = ({ logs, darkMode }) => {
                                                         {log.method || 'GET'}
                                                     </span>
                                                 </td>
-                                                <td className="font-mono text-xs max-w-xs" title={url}>{shortUrl}</td>
+                                                <td>
+                                                    <UrlCell url={url} darkMode={darkMode} />
+                                                </td>
                                                 <td>
                                                     <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${log.status_code >= 400
-                                                            ? 'bg-red-500/10 text-red-400'
-                                                            : 'bg-green-500/10 text-green-400'
+                                                        ? 'bg-red-500/10 text-red-400'
+                                                        : 'bg-green-500/10 text-green-400'
                                                         }`}>
                                                         {log.status_code}
                                                     </span>
@@ -118,49 +126,33 @@ const ThreatAnalysis = ({ logs, darkMode }) => {
                                                 </td>
                                                 <td><RiskBadge level={log.risk_level} /></td>
                                                 <td>
+                                                    <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${threatType.includes('SQL') || threatType.includes('Critical')
+                                                        ? 'bg-red-500/10 text-red-400'
+                                                        : threatType.includes('XSS') || threatType.includes('Token')
+                                                            ? 'bg-orange-500/10 text-orange-400'
+                                                            : threatType.includes('Authentication')
+                                                                ? 'bg-yellow-500/10 text-yellow-400'
+                                                                : darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+                                                        }`}>
+                                                        {threatType}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {owaspCat && (
+                                                        <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${darkMode ? 'bg-purple-500/10 text-purple-400' : 'bg-purple-50 text-purple-600'}`}>
+                                                            {owaspCat}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td>
                                                     <button
-                                                        onClick={() => setExpandedId(isExpanded ? null : i)}
+                                                        onClick={() => setSelectedLog(log)}
                                                         className="text-xs font-mono font-semibold px-3 py-1 rounded border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 transition-all"
                                                     >
-                                                        {isExpanded ? 'CLOSE' : 'DETAILS'}
+                                                        DETAILS
                                                     </button>
                                                 </td>
                                             </tr>
-                                            {isExpanded && (
-                                                <tr>
-                                                    <td colSpan={7} className={`${darkMode ? 'bg-[#0d0d0d]' : 'bg-gray-50'} px-6 py-4`}>
-                                                        <div className="space-y-2">
-                                                            <p className="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2">Analysis Reasons</p>
-                                                            {log.reasons && log.reasons.length > 0 ? (
-                                                                log.reasons.map((r, j) => (
-                                                                    <div key={j} className="flex items-start gap-2">
-                                                                        <span className="text-amber-400 mt-0.5">▸</span>
-                                                                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{r}</span>
-                                                                    </div>
-                                                                ))
-                                                            ) : (
-                                                                <p className={`text-xs ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>No specific reasons recorded.</p>
-                                                            )}
-                                                            <div className="flex gap-6 mt-3 pt-3 border-t border-gray-800/50">
-                                                                <div>
-                                                                    <span className={`text-xs ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>ML Probability: </span>
-                                                                    <span className="text-xs font-mono text-cyan-400">{log.ml_probability !== undefined ? `${(log.ml_probability * 100).toFixed(1)}%` : '—'}</span>
-                                                                </div>
-                                                                <div>
-                                                                    <span className={`text-xs ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>Heuristic Score: </span>
-                                                                    <span className="text-xs font-mono text-amber-400">{log.heuristic_score !== undefined ? `${(log.heuristic_score * 100).toFixed(1)}%` : '—'}</span>
-                                                                </div>
-                                                                <div>
-                                                                    <span className={`text-xs ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>HTTPS: </span>
-                                                                    <span className={`text-xs font-mono ${log.is_https ? 'text-green-400' : 'text-red-400'}`}>
-                                                                        {log.is_https ? 'Yes ✓' : 'No ✗'}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
                                         </React.Fragment>
                                     );
                                 })
@@ -172,6 +164,13 @@ const ThreatAnalysis = ({ logs, darkMode }) => {
                     Showing {filtered.length} of {logs.length} records
                 </div>
             </div>
+
+            <DetailsModal
+                isOpen={!!selectedLog}
+                onClose={() => setSelectedLog(null)}
+                log={selectedLog}
+                darkMode={darkMode}
+            />
         </div>
     );
 };

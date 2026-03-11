@@ -36,6 +36,9 @@ class RiskAssessment(BaseModel):
     ml_probability: float
     heuristic_score: float
     reasons: List[str] = []
+    threat_type: str = "General Anomaly"
+    threat_label: str = "Secured API"
+    owasp_category: str = ""
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:

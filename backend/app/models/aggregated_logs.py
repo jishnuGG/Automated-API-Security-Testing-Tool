@@ -48,6 +48,9 @@ class HighRiskLog(BaseModel):
     ml_probability: float
     heuristic_score: float
     reasons: List[str] = Field(default_factory=list)
+    threat_type: str = ""
+    threat_label: str = ""
+    owasp_category: str = ""
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

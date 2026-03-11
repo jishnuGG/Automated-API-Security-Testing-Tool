@@ -96,8 +96,8 @@ export const exportLogs = async (startDate, endDate, format = 'csv') => {
             responseType: 'blob',
         });
 
-        // Trigger browser download
-        const ext = format === 'xlsx' ? 'xlsx' : 'csv';
+        const extMap = { xlsx: 'xlsx', pdf: 'pdf', csv: 'csv' };
+        const ext = extMap[format] || 'csv';
         const filename = `security_logs_${startDate}_to_${endDate}.${ext}`;
         const url = window.URL.createObjectURL(response.data);
         const link = document.createElement('a');
@@ -112,5 +112,17 @@ export const exportLogs = async (startDate, endDate, format = 'csv') => {
     } catch (error) {
         console.error('Error exporting logs:', error);
         throw error;
+    }
+};
+
+// ─── Metrics endpoint ────────────────────────────────
+
+export const fetchMetrics = async () => {
+    try {
+        const response = await api.get('/metrics');
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching metrics:", error);
+        return null;
     }
 };
