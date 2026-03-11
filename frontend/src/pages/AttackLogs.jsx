@@ -3,6 +3,7 @@ import RiskBadge from '../components/RiskBadge';
 import ExportModal from '../components/ExportModal';
 import UrlCell from '../components/UrlCell';
 import { exportLogs } from '../services/api';
+import { formatTimestamp } from '../utils/formatTimestamp';
 
 const RefreshIcon = () => (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -101,9 +102,7 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                                 filtered.map((log, i) => {
                                     const id = (log._id || '').toString().substring(0, 8);
                                     const url = log.url || '';
-                                    const time = log.timestamp
-                                        ? new Date(log.timestamp).toLocaleString('en-IN')
-                                        : '—';
+                                    const time = formatTimestamp(log.timestamp);
 
                                     return (
                                         <tr key={i}>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import RiskBadge from '../components/RiskBadge';
 import UrlCell from '../components/UrlCell';
 import DetailsModal from '../components/DetailsModal';
+import { formatTimestamp } from '../utils/formatTimestamp';
 
 const SearchIcon = () => (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -95,9 +96,7 @@ const ThreatAnalysis = ({ logs, darkMode }) => {
                             ) : (
                                 filtered.map((log, i) => {
                                     const url = log.url || '';
-                                    const time = log.timestamp
-                                        ? new Date(log.timestamp).toLocaleString('en-IN')
-                                        : '—';
+                                    const time = formatTimestamp(log.timestamp);
                                     const threatType = log.threat_type || 'General Anomaly';
                                     const owaspCat = log.owasp_category || '';
 
