@@ -86,3 +86,31 @@ export const fetchHighRiskLogs = async (domain, limit = 50) => {
         return [];
     }
 };
+
+// ─── Export endpoints ────────────────────────────────
+
+export const exportLogs = async (startDate, endDate, format = 'csv') => {
+    try {
+        const response = await api.get('/export-logs', {
+            params: { start_date: startDate, end_date: endDate, format },
+            responseType: 'blob',
+        });
+
+        // Trigger browser download
+        const ext = format === 'xlsx' ? 'xlsx' : 'csv';
+        const filename = `security_logs_${startDate}_to_${endDate}.${ext}`;
+        const url = window.URL.createObjectURL(response.data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        return true;
+    } catch (error) {
+        console.error('Error exporting logs:', error);
+        throw error;
+    }
+};

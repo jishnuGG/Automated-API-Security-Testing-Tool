@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import RiskBadge from '../components/RiskBadge';
+import ExportModal from '../components/ExportModal';
+import { exportLogs } from '../services/api';
 
 const RefreshIcon = () => (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -7,40 +9,15 @@ const RefreshIcon = () => (
     </svg>
 );
 
-const DownloadIcon = () => (
+const ExportIcon = () => (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
     </svg>
 );
 
-const exportCSV = (logs) => {
-    const headers = ['ID', 'Domain', 'Timestamp', 'Method', 'URL', 'Status Code', 'ML Probability', 'Heuristic Score', 'Risk Score', 'Risk Level', 'Is HTTPS', 'Reasons'];
-    const rows = logs.map((log) => [
-        (log._id || '').toString().substring(0, 8),
-        log.domain || '',
-        log.timestamp ? new Date(log.timestamp).toLocaleString('en-IN') : '',
-        log.method || '',
-        `"${(log.url || '').replace(/"/g, '""')}"`,
-        log.status_code || '',
-        log.ml_probability !== undefined ? (log.ml_probability * 100).toFixed(1) + '%' : '',
-        log.heuristic_score !== undefined ? (log.heuristic_score * 100).toFixed(1) + '%' : '',
-        log.risk_score !== undefined ? (log.risk_score * 100).toFixed(1) + '%' : '',
-        log.risk_level || '',
-        log.is_https ? 'Yes' : 'No',
-        `"${(log.reasons || []).join('; ')}"`,
-    ]);
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `high_risk_logs_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-};
-
 const AttackLogs = ({ logs, darkMode, onRefresh }) => {
     const [domainFilter, setDomainFilter] = useState('all');
+    const [showExportModal, setShowExportModal] = useState(false);
 
     // Get unique domains from logs
     const domains = [...new Set(logs.map(l => l.domain).filter(Boolean))].sort();
@@ -48,6 +25,10 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
     const filtered = domainFilter === 'all'
         ? logs
         : logs.filter(l => l.domain === domainFilter);
+
+    const handleExport = async (startDate, endDate, format) => {
+        await exportLogs(startDate, endDate, format);
+    };
 
     return (
         <div className="p-8 space-y-5">
@@ -81,10 +62,11 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                         <RefreshIcon /> REFRESH
                     </button>
                     <button
-                        onClick={() => exportCSV(filtered)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/40 text-cyan-400 text-sm font-medium hover:bg-cyan-500/10 transition-all"
+                        onClick={() => setShowExportModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-cyan-500/40 text-cyan-400 text-sm font-semibold font-mono hover:bg-cyan-500/10 hover:border-cyan-500/60 transition-all"
+                        id="export-logs-btn"
                     >
-                        <DownloadIcon /> EXPORT CSV
+                        <ExportIcon /> EXPORT LOGS
                     </button>
                 </div>
             </div>
@@ -159,6 +141,14 @@ const AttackLogs = ({ logs, darkMode, onRefresh }) => {
                     <span>Auto-refreshes every 5 seconds</span>
                 </div>
             </div>
+
+            {/* Export Modal */}
+            <ExportModal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                darkMode={darkMode}
+                onExport={handleExport}
+            />
         </div>
     );
 };
